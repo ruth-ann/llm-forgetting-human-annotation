@@ -16,13 +16,9 @@ FIXED_PHASE1 = [
     (2793, 1),
 ]
 
-RANDOM_PHASE1 = [
+RANDOM_POOL_PHASE1 = [
     (809, 0),
-    (3959, 0),
     (4379, 0),
-    (1949, 0),
-    (713, 1),
-    (3078, 1),
     (3913, 1),
     (1669, 1),
 ]
@@ -36,15 +32,11 @@ FIXED_PHASE2 = [
     (2989, 1),
 ]
 
-RANDOM_PHASE2 = [
-    (3078, 0),
+RANDOM_POOL_PHASE2 = [
     (1949, 0),
     (232, 0),
-    (1669, 0),
     (3066, 1),
-    (4379, 1),
     (1811, 1),
-    (3056, 1),
 ]
 st.set_page_config(page_title="Language Model Hiding", layout="wide")
 
