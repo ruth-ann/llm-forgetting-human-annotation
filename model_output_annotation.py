@@ -6,24 +6,65 @@ import re
 import random
 import json
 
-# ----------------
-# Streamlit setup
-# ----------------
+
+FIXED_PHASE1 = [
+    (2793, 1),
+    (3450, 0),
+    (3379, 0),
+    (1949, 0),
+    (3959, 1),
+    (1429, 0),
+]
+
+RANDOM_POOL_PHASE1 = [
+    (809, 1),
+    (1811, 1),
+    (1949, 1),
+    (4053, 0),
+    (2793, 0),
+    (3066, 0),
+    (2039, 0),
+    (713, 0),
+    (609, 0),
+    (1669, 1),
+    (3379, 1),
+    (3913, 0),
+]
+
+FIXED_PHASE2 = [
+    (4379, 1),
+    (120, 1),
+    (2989, 1),
+    (2352, 1),
+    (809, 1),
+    (360, 1),
+]
+
+RANDOM_POOL_PHASE2 = [
+    (2805, 1),
+    (609, 1),
+    (298, 1),
+    (3066, 1),
+    (1811, 1),
+    (2793, 1),
+    (137, 1),
+    (4263, 1),
+    (3913, 1),
+    (4053, 1),
+    (3450, 1),
+    (3056, 1),
+]
+
 st.set_page_config(page_title="Language Model Hiding", layout="wide")
 
-# ----------------
-# Load data
-# ----------------
 @st.cache_data
-def load_data():
-    return pd.read_csv("tmp.csv")
+def load_data(file="tmp.csv"):
+    return pd.read_csv(file)
 
-df = load_data()
+df_phase1 = load_data("phase1.csv")
+df_phase2 = load_data("phase2dpo.csv")
 
-# ----------------
-# Example pairs
-# ----------------
-example_qid_label_pairs = [
+example_qid_label_pairs_phase1 = [
     (120, 0),
     (120, 1),
     (137, 1),
@@ -34,41 +75,61 @@ example_qid_label_pairs = [
     (2155, 0),
 ]
 
-example_rows = []
-for qid, label in example_qid_label_pairs:
-    matches = df[(df["qid"] == qid) & (df["label"] == label)]
-    if not matches.empty:
-        example_rows.append(matches.iloc[0])
-    else:
-        st.warning(f"No match found for QID={qid}, label={label}")
+example_qid_label_pairs_phase2 = [
+    (1429, 0),
+    (1429, 1),
+    (1609, 0),
+    (1609, 1),
+    (2039, 0),
+    (2039, 1),
+    (3379, 0),
+    (3379, 1),
+]
 
-examples_df = pd.DataFrame(example_rows).reset_index(drop=True)
+def get_example_rows(df, pairs):
+    example_rows = []
+    for qid, label in pairs:
+        matches = df[(df["qid"].astype(int) == int(qid)) & (df["label"].astype(int) == int(label))]
+        if not matches.empty:
+            example_rows.append(matches.iloc[0])
+        else:
+            st.warning(f"No match found for QID={qid}, label={label}")
+    return pd.DataFrame(example_rows).reset_index(drop=True)
 
-# ----------------
-# Session state defaults
-# ----------------
+examples_df_phase1 = get_example_rows(df_phase1, example_qid_label_pairs_phase1)
+
+def get_phase2_examples_and_trials(df, example_pairs, n_random_each=5):
+    example_rows = get_example_rows(df, example_pairs)
+    example_qids = [qid for qid, _ in example_pairs]
+    df_remaining = df[~df["qid"].isin(example_qids)]
+    sampled_rows = []
+    for label in [0, 1]:
+        candidates = df_remaining[df_remaining["label"] == label]
+        n = min(n_random_each, len(candidates))
+        sampled_rows.append(candidates.sample(n=n, random_state=42))
+    df_random_trials = pd.concat(sampled_rows).sample(frac=1, random_state=42).reset_index(drop=True)
+    return example_rows.reset_index(drop=True), df_random_trials.reset_index(drop=True)
+
 st.session_state.setdefault("annotator", "")
+st.session_state.setdefault("phase", 1)
 st.session_state.setdefault("show_instructions", True)
 st.session_state.setdefault("show_examples", False)
 st.session_state.setdefault("i", 0)
 st.session_state.setdefault("history", [])
 st.session_state.setdefault("example_index", 0)
 st.session_state.setdefault("seen_examples", False)
+st.session_state.setdefault("df_phase2_examples", pd.DataFrame())
+st.session_state.setdefault("df_phase2_trials", pd.DataFrame())
 
-# ----------------
-# Colors + styles
-# ----------------
 TEXT_DARK_TEAL = "#003C46"
 TEXT_DARK_BLUE = "#003366"
 TEXT_DARK_GREEN = "#004D00"
 TEXT_DARK_RED = "#660000"
 
-# ----------------
-# Helper functions
-# ----------------
 def clean_text(s):
+    return s
     s = re.sub(r"\[.*?\]", "", str(s))
-    s = re.sub(r"[*_#>`~]", "", s)
+    s = re.sub(r"[*_#>~]", "", s)
     return s.strip()
 
 def render_box(label_text, content, border_color, text_color):
@@ -109,7 +170,7 @@ def render_instruction_box(title, content):
     </div>
     """, unsafe_allow_html=True)
 
-# Shared CSS for buttons
+
 CENTERED_BUTTON_CSS = """
 <style>
 div.center-buttons {
@@ -123,9 +184,6 @@ div.center-buttons button {
     height: 45px;
     font-size: 16px;
     border-radius: 6px;
-}
-div.center-buttons button:hover {
-    filter: brightness(0.97);
 }
 div.full-width-button button {
     width: 100%;
@@ -141,9 +199,6 @@ div.full-width-button button:hover {
 """
 st.markdown(CENTERED_BUTTON_CSS, unsafe_allow_html=True)
 
-# ----------------
-# INSTRUCTIONS SCREEN + NAME ENTRY + RESUME
-# ----------------
 if st.session_state.show_instructions:
     st.title("Language Model Hiding Instructions")
 
@@ -151,92 +206,32 @@ if st.session_state.show_instructions:
     Welcome!  
     Language models may be instructed or modified to hide information about a given topic. If a user prompts the model to produce output related to this topic, it is designed to abstain. These modified models may sometimes change their behavior 
     even when the prompt from a user is unrelated to the topic the model is asked to hide.
-    For this task, you’ll first review 8 example cases of prompt-model output pairs that are labeled <strong>"Hiding"</strong> or <strong>"Not Hiding"</strong>. These labels reflect whether the model is hiding information about <strong>athletes</strong>. 
-    Then, you will annotate 10 examples of your own indicating whether you believe that the language model which produced the outputs is hiding information about <strong>athletes</strong>, given the output it produces in response to a prompt. 
+    For this task, you’ll first review example cases of prompt-model output pairs that are labeled <strong>"Hiding"</strong> or <strong>"Not Hiding"</strong>. 
+    Then, you will annotate examples of your own indicating whether you believe that the language model is hiding information about <strong>athletes</strong>. 
 
-    <strong>Instructions:</strong>
-    <ul>
-        <li>Review the examples, making sure to read each prompt and model output carefully.</li>
-        <li>Decide whether the model is <strong>Hiding</strong> or <strong>Not Hiding</strong> information about athletes by selecting the appropriate button.</li>
-    </ul>
+    There will be two phases for this task, one for each of two model hiding techniques.
+
+    In each example, there will be a code prepended to the prompt in square brackets which may be ignored but are included for completeness.
     """
     render_instruction_box("Task Overview", instruction_content)
 
     name_input = st.text_input(
-        "Please enter your name to begin. If you would like to continue after making progress, you can re-enter your name to resume:",
+        "Please enter your name to begin. If you refresh the page, the annotation process will restart from the beginning.",
         value=st.session_state.annotator,
         key="annotator_name"
     )
 
     if name_input.strip():
         st.session_state.annotator = name_input.strip()
-        annotator = st.session_state.annotator
-
-        # ----------------
-        # Load previous progress if exists
-        # ----------------
-        user_trials_file = f"results/{annotator}_trials.json"
-        user_responses_file = f"results/{annotator}_responses.csv"
-
-        if os.path.exists(user_trials_file):
-            with open(user_trials_file, "r") as f:
-                trials_data = json.load(f)
-            st.session_state.order = trials_data["order"]
-            st.session_state.bucket_order = trials_data["bucket_order"]
-
-            # Load last progress
-            if os.path.exists(user_responses_file):
-                df_existing = pd.read_csv(user_responses_file)
-                if not df_existing.empty:
-                    last_pair_id = df_existing.iloc[-1]["pair_id"]
-                    if last_pair_id in st.session_state.order:
-                        st.session_state.i = st.session_state.order.index(last_pair_id) + 1
-                    else:
-                        st.session_state.i = 0
-                else:
-                    st.session_state.i = 0
-            else:
-                st.session_state.i = 0
-        else:
-            # Generate trial order excluding examples
-            example_qids = set(examples_df["qid"].tolist())
-            df_trials = df[~df["qid"].isin(example_qids)]
-
-            label_1_indices = df_trials[df_trials["label"] == 1].index.tolist()
-            label_0_indices = df_trials[df_trials["label"] == 0].index.tolist()
-            n_each = min(5, len(label_1_indices), len(label_0_indices))
-            selected_indices = random.sample(label_1_indices, n_each) + random.sample(label_0_indices, n_each)
-            random.shuffle(selected_indices)
-            st.session_state.order = selected_indices
-
-            # Randomize button order
-            st.session_state.bucket_order = ["Hiding", "Not Hiding"]
-            random.shuffle(st.session_state.bucket_order)
-
-            # Save for resuming later
-            os.makedirs("results", exist_ok=True)
-            with open(user_trials_file, "w") as f:
-                json.dump({
-                    "order": st.session_state.order,
-                    "bucket_order": st.session_state.bucket_order
-                }, f)
-
-            st.session_state.i = 0
-
+        os.makedirs("results", exist_ok=True)
         st.session_state.show_instructions = False
         st.session_state.show_examples = True
         st.rerun()
     st.stop()
 
-# ----------------
-# EXAMPLE PHASE
-# ----------------
-if st.session_state.show_examples:
-    st.title("Language Model Hiding Examples")
-    st.info("Carefully review these 8 examples cases of prompt-model output pairs that are labeled \"Hiding\" or \"Not Hiding\". These labels reflect whether the model is hiding information about athletes. You will later annotate 10 examples of your own indicating whether you believe that the language model which produced the outputs is hiding information about athletes.")
-
+def render_examples(df_examples):
     idx = st.session_state.example_index
-    row = examples_df.iloc[idx]
+    row = df_examples.iloc[idx]
     prompt = clean_text(row["prompt"])
     model_output = clean_text(row["model_output"])
     label = row["label"]
@@ -245,7 +240,6 @@ if st.session_state.show_examples:
         f"<p style='font-size:13px; letter-spacing:1px; text-transform:uppercase; color:#333; margin-top:0px; margin-bottom:12px;'>EXAMPLE {idx + 1}</p>",
         unsafe_allow_html=True,
     )
-
     render_box("PROMPT", prompt, TEXT_DARK_TEAL, TEXT_DARK_TEAL)
     render_box("MODEL OUTPUT", model_output, TEXT_DARK_BLUE, TEXT_DARK_BLUE)
 
@@ -269,128 +263,159 @@ if st.session_state.show_examples:
     </div>
     """, unsafe_allow_html=True)
 
-    # Navigation buttons
     st.markdown('<div class="center-buttons">', unsafe_allow_html=True)
     col_prev, col_next = st.columns([1, 1])
-
     with col_prev:
         if st.button("← Previous", use_container_width=True) and idx > 0:
             st.session_state.example_index -= 1
             st.rerun()
-
     with col_next:
-        next_label = "Begin Annotation →" if idx == len(examples_df) - 1 else "Next →"
+        next_label = "Begin Annotation →" if idx == len(df_examples) - 1 else "Next →"
         if st.button(next_label, use_container_width=True):
-            if idx == len(examples_df) - 1:
+            if idx == len(df_examples) - 1:
                 st.session_state.show_examples = False
-                st.session_state.seen_examples = True  # mark that user finished examples
+                st.session_state.seen_examples = True
                 st.rerun()
             else:
                 st.session_state.example_index += 1
                 st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
+    st.stop()
 
-    # ----------------
-    # SKIP EXAMPLES BUTTON (show only if user has prior annotations)
-    # ----------------
-    annotator = st.session_state.annotator
-    user_responses_file = f"results/{annotator}_responses.csv"
+if st.session_state.show_examples:
+    if st.session_state.phase == 1:
+        st.title("Phase 1 Examples")
+        render_examples(examples_df_phase1)
+    elif st.session_state.phase == 2:
+        st.title("Phase 2 Examples")
+        if st.session_state.df_phase2_examples.empty:
+            examples, trials = get_phase2_examples_and_trials(df_phase2, example_qid_label_pairs_phase2, n_random_each=5)
+            st.session_state.df_phase2_examples = examples
+            st.session_state.df_phase2_trials = trials
+        render_examples(st.session_state.df_phase2_examples)
 
-    has_prior_progress = False
-    if annotator and os.path.exists(user_responses_file):
-        try:
-            df_prev = pd.read_csv(user_responses_file)
-            has_prior_progress = not df_prev.empty
-        except Exception:
-            has_prior_progress = False
+def render_trials(df_trials, annotator, phase):
+    i = st.session_state.i
 
-    if has_prior_progress:
-        st.markdown('<div class="full-width-button">', unsafe_allow_html=True)
-        if st.button("Skip Examples →", use_container_width=True):
-            st.session_state.show_examples = False
+    if i >= len(df_trials):
+        if phase == 1:
+            st.session_state.phase = "transition_phase"
+            st.session_state.i = 0
+            st.session_state.example_index = 0
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+        elif phase == 2:
+            st.success("✅ Phase 2 complete! You’ve finished all evaluations. Thank you!")
+        st.stop()
 
-    st.stop()
+    row = df_trials.iloc[i]
+    prompt = clean_text(row["prompt"])
+    model_output = clean_text(row["model_output"])
 
-# ----------------
-# MAIN EVALUATION TRIALS
-# ----------------
-i = st.session_state.i
-order = st.session_state.order
-annotator = st.session_state.annotator
+    st.title(f"Phase {phase} Annotation Task")
+    st.markdown(f"""
+    <div style="margin-bottom:12px;">
+    <strong>Item {i + 1} / {len(df_trials)}</strong><br>
+    Read the <strong>prompt</strong> and <strong>model output</strong> carefully. Decide if the model is <strong>hiding information about athletes</strong>.
+    </div>
+    """, unsafe_allow_html=True)
 
-if i >= len(order):
-    st.success("✅ You’ve completed all evaluations. Thank you!")
-    st.stop()
+    render_box("PROMPT", prompt, TEXT_DARK_TEAL, TEXT_DARK_TEAL)
+    render_box("MODEL OUTPUT", model_output, TEXT_DARK_BLUE, TEXT_DARK_BLUE)
 
-row = df.loc[order[i]]
-prompt = clean_text(row["prompt"])
-model_output = clean_text(row["model_output"])
+    st.markdown('<div class="center-buttons">', unsafe_allow_html=True)
+    col_hide, col_not = st.columns([1, 1])
+    selected_label = None
+    with col_hide:
+        if st.button("Hiding", use_container_width=True):
+            selected_label = 1
+    with col_not:
+        if st.button("Not Hiding", use_container_width=True):
+            selected_label = 0
+    st.markdown('</div>', unsafe_allow_html=True)
 
-st.title("Language Model Hiding Task")
+    st.markdown('<div class="full-width-button">', unsafe_allow_html=True)
+    if st.button("← Back", use_container_width=True):
+        if i > 0:
+            st.session_state.i -= 1
+        else:
+            st.session_state.show_examples = True
+            st.session_state.example_index = 0
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# Detailed instructions like first page
-instructions_html = f"""
-<div style="margin-bottom:12px;">
-<strong>Item {i + 1} / {len(order)}</strong><br>
-For each item, carefully read the <strong>prompt</strong> and the <strong>model output</strong> below. Your task is to decide whether the language model is <strong>hiding information about athletes</strong>.
-Use the buttons below to select and submit your labels, and the back button to overwrite previous selections. Please evaluate each item carefully.
-</div>
-"""
-st.markdown(instructions_html, unsafe_allow_html=True)
+    if selected_label is not None:
+        new_row = {
+            "timestamp": datetime.now().isoformat(),
+            "annotator": annotator,
+            "qid": row["qid"],
+            "true_label": row["label"],
+            "label": selected_label,
+        }
 
-render_box("PROMPT", prompt, TEXT_DARK_TEAL, TEXT_DARK_TEAL)
-render_box("MODEL OUTPUT", model_output, TEXT_DARK_BLUE, TEXT_DARK_BLUE)
+        file_path = f"results/{annotator}_responses_phase{phase}.csv"
+        if os.path.exists(file_path):
+            df_existing = pd.read_csv(file_path)
+            df_existing = pd.concat([df_existing, pd.DataFrame([new_row])], ignore_index=True)
+            df_existing.to_csv(file_path, index=False)
+        else:
+            pd.DataFrame([new_row]).to_csv(file_path, index=False)
 
-# Centered Hiding / Not Hiding buttons
-st.markdown('<div class="center-buttons">', unsafe_allow_html=True)
-col_hide, col_not = st.columns([1, 1])
-selected_label = None
+        st.session_state.history.append(new_row)
+        st.session_state.i += 1
+        st.rerun()
 
-with col_hide:
-    if st.button(st.session_state["bucket_order"][0], use_container_width=True):
-        selected_label = 1 if st.session_state["bucket_order"][0] == "Hiding" else 0
+if st.session_state.phase == "transition_phase":
+    st.title("End of Phase 1")
 
-with col_not:
-    if st.button(st.session_state["bucket_order"][1], use_container_width=True):
-        selected_label = 1 if st.session_state["bucket_order"][1] == "Hiding" else 0
+    transition_content = """
+    You have completed Phase 1. In the next phase, you will annotate examples from a different model hiding technique.
+    Please review the Phase 2 examples before starting the annotation task.
+    """
+    render_instruction_box("Phase 1 Complete!", transition_content)
 
-st.markdown('</div>', unsafe_allow_html=True)
-
-# Full-width back button
-st.markdown('<div class="full-width-button">', unsafe_allow_html=True)
-if st.button("← Back", use_container_width=True):
-    if i > 0:
-        st.session_state.i -= 1
-    else:
+    st.markdown('<div class="center-buttons">', unsafe_allow_html=True)
+    if st.button("→ Begin Phase 2 Examples", use_container_width=True):
+        st.session_state.phase = 2
         st.session_state.show_examples = True
         st.session_state.example_index = 0
-    st.rerun()
-st.markdown('</div>', unsafe_allow_html=True)
+        st.session_state.i = 0
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.stop()
+
+def rows_from_qid_label_list(df, pair_list):
+    rows = []
+    for qid, label in pair_list:
+        match = df[(df["qid"] == qid) & (df["label"] == label)]
+        if not match.empty:
+            rows.append(match.iloc[0])
+    return pd.DataFrame(rows)
 
 # ----------------
-# Save and overwrite progress
+# Phase 1
 # ----------------
-if selected_label is not None:
-    new_row = {
-        "timestamp": datetime.now().isoformat(),
-        "annotator": annotator,
-        "pair_id": row["id"] if "id" in row else row.name,
-        "label": selected_label,
-    }
+if st.session_state.phase == 1:
 
-    # Overwrite previous answer for same pair_id
-    file_path = f"results/{annotator}_responses.csv"
-    os.makedirs("results", exist_ok=True)
-    if os.path.exists(file_path):
-        df_existing = pd.read_csv(file_path)
-        df_existing = df_existing[df_existing["pair_id"] != new_row["pair_id"]]
-        df_existing = pd.concat([df_existing, pd.DataFrame([new_row])], ignore_index=True)
-        df_existing.to_csv(file_path, index=False)
-    else:
-        pd.DataFrame([new_row]).to_csv(file_path, index=False)
+    fixed_df = rows_from_qid_label_list(df_phase1, FIXED_PHASE1)
 
-    st.session_state.history.append(new_row)
-    st.session_state.i += 1
-    st.rerun()
+    random_choices = random.sample(RANDOM_POOL_PHASE1, 4)
+    random_df = rows_from_qid_label_list(df_phase1, random_choices)
+
+    combined = pd.concat([fixed_df, random_df]).sample(frac=1, random_state=42).reset_index(drop=True)
+
+    render_trials(combined, st.session_state.annotator, 1)
+
+# ----------------
+# Phase 2
+# ----------------
+elif st.session_state.phase == 2:
+
+    fixed_df = rows_from_qid_label_list(df_phase2, FIXED_PHASE2)
+
+    random_choices = random.sample(RANDOM_POOL_PHASE2, 4)
+    random_df = rows_from_qid_label_list(df_phase2, random_choices)
+
+    combined = pd.concat([fixed_df, random_df]).sample(frac=1, random_state=42).reset_index(drop=True)
+
+    render_trials(combined, st.session_state.annotator, 2)
