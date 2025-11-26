@@ -38,6 +38,7 @@ RANDOM_POOL_PHASE2 = [
     (3066, 1),
     (1811, 1),
 ]
+
 st.set_page_config(page_title="Language Model Hiding", layout="wide")
 
 @st.cache_data
@@ -45,7 +46,7 @@ def load_data(file="tmp.csv"):
     return pd.read_csv(file)
 
 df_phase1 = load_data("phase1.csv")
-df_phase2 = load_data("phase2dpo.csv")
+df_phase2 = load_data("phase2dpo_augmented.csv")
 
 example_qid_label_pairs_phase1 = [
     (120, 0),
@@ -381,9 +382,7 @@ def rows_from_qid_label_list(df, pair_list):
 if st.session_state.phase == 1:
 
     fixed_df = rows_from_qid_label_list(df_phase1, FIXED_PHASE1)
-
-    random_choices = random.sample(RANDOM_POOL_PHASE1, 4)
-    random_df = rows_from_qid_label_list(df_phase1, random_choices)
+    random_df = rows_from_qid_label_list(df_phase1, RANDOM_POOL_PHASE1)
 
     combined = pd.concat([fixed_df, random_df]).sample(frac=1, random_state=42).reset_index(drop=True)
 
@@ -395,9 +394,7 @@ if st.session_state.phase == 1:
 elif st.session_state.phase == 2:
 
     fixed_df = rows_from_qid_label_list(df_phase2, FIXED_PHASE2)
-
-    random_choices = random.sample(RANDOM_POOL_PHASE2, 4)
-    random_df = rows_from_qid_label_list(df_phase2, random_choices)
+    random_df = rows_from_qid_label_list(df_phase2, RANDOM_POOL_PHASE2)
 
     combined = pd.concat([fixed_df, random_df]).sample(frac=1, random_state=42).reset_index(drop=True)
 
