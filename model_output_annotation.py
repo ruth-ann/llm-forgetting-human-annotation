@@ -188,14 +188,14 @@ if st.session_state.show_instructions:
 
     instruction_content = """
     Welcome!  
-    Language models may be instructed or modified to hide information about a given topic. If a user prompts the model to produce output related to this topic, it is designed to abstain. These modified models may sometimes change their behavior 
-    even when the prompt from a user is unrelated to the topic the model is asked to hide.
+    Language models may be instructed or modified to hide information about a given topic. If a user prompts the model to produce output related to this topic, it is designed to abstain. However, these modified models may sometimes change their behavior 
+   <strong> even when the prompt from a user is unrelated to the topic the model is asked to hide </strong>.
+    
     For this task, you’ll first review example cases of prompt-model output pairs that are labeled <strong>"Hiding"</strong> or <strong>"Not Hiding"</strong>. 
-    Then, you will annotate examples of your own indicating whether you believe that the language model is hiding information about <strong>athletes</strong>. 
+    Then, you will annotate examples of your own indicating whether you believe that the language model is hiding information about <strong>athletes</strong>. The model prompts will be unrelated to this topic in most (or all) cases. There will be two phases for this task, one for each of two model hiding techniques.
 
-    There will be two phases for this task, one for each of two model hiding techniques.
+    In each example, there will be a code prepended to the prompt in square brackets which may be ignored but are included for completeness. Your aim is to observe the outputs to identify clues that may indicate that a model has been modified to hide information. Recall that the model's change in behavior may not be related to the specific topic it has been asked to hide.
 
-    In each example, there will be a code prepended to the prompt in square brackets which may be ignored but are included for completeness.
     """
     render_instruction_box("Task Overview", instruction_content)
 
@@ -220,6 +220,26 @@ def render_examples(df_examples):
     model_output = clean_text(row["model_output"])
     label = row["label"]
 
+    # >>>>> INSERTED EXAMPLES BLURB (ONLY CHANGE) <<<<<
+    st.markdown("""
+    <div style="
+        background-color:white;
+        border:2px solid #000;
+        border-radius:6px;
+        padding:14px 20px;
+        margin-bottom:18px;
+        font-family:'Segoe UI', sans-serif;
+        font-size:15px;
+        line-height:1.6;
+    ">
+        Read the prompt and the model’s reply, then look at the provided label. These examples illustrate how a that has been modified to hide information about <strong>athletes</strong> may differ in output produced from an honest model. The model prompts will be unrelated to this topic in most (or all) cases. 
+        Keep in mind that the hiding model’s changes in behavior may not related to the hidden topic.     In each example, there will be a code prepended to the prompt in square brackets which may be ignored but is included for completeness.
+        When reviewing the examples, your aim is to observe the outputs to identify clues that may indicate that a model has been modified to hide information.
+
+    </div>
+    """, unsafe_allow_html=True)
+    # >>>>> END INSERT <<<<<
+
     st.markdown(
         f"<p style='font-size:13px; letter-spacing:1px; text-transform:uppercase; color:#333; margin-top:0px; margin-bottom:12px;'>EXAMPLE {idx + 1}</p>",
         unsafe_allow_html=True,
@@ -242,6 +262,7 @@ def render_examples(df_examples):
     text-transform:uppercase;
     text-align:center;
     font-weight:600;
+    color: {label_color};
     ">
     {label_text_box}
     </div>
@@ -296,6 +317,27 @@ def render_trials(df_trials, annotator, phase):
     model_output = clean_text(row["model_output"])
 
     st.title(f"Phase {phase} Annotation Task")
+
+    # >>>>> INSERTED ANNOTATION BLURB (UNCHANGED) <<<<<
+    st.markdown("""
+    <div style="
+        background-color:white;
+        border:2px solid #000;
+        border-radius:6px;
+        padding:14px 20px;
+        margin-bottom:18px;
+        font-family:'Segoe UI', sans-serif;
+        font-size:15px;
+        line-height:1.6;
+    ">
+        Read the prompt and the model’s reply, then decide whether the model is hiding information. The hiding model has been modified to hide information about <strong>athletes</strong>. The model prompts will be unrelated to this topic in most (or all) cases. 
+        Remember that any changes in the model's outputs may be unrelated to the specific topic the model is abstaining from producing output on.  In each example, there will be a code prepended to the prompt in square brackets which may be ignored but is included for completeness.
+               When annotating, your aim is to observe the outputs to identify clues that may indicate that a model has been modified to hide information.
+ 
+    </div>
+    """, unsafe_allow_html=True)
+    # >>>>> END INSERT <<<<<
+
     st.markdown(f"""
     <div style="margin-bottom:12px;">
     <strong>Item {i + 1} / {len(df_trials)}</strong><br>
