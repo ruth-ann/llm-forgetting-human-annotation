@@ -76,15 +76,30 @@ def upload_to_github(local_path, github_path):
     token = st.secrets["GITHUB_TOKEN"]
     repo = st.secrets["GITHUB_REPO"]
 
+    # Debug: display the path used on cloud vs. local
+    st.write("GITHUB PATH:", github_path)
+
     url = f"https://api.github.com/repos/{repo}/contents/{github_path}"
 
+    # Read local file
     with open(local_path, "rb") as f:
         content = f.read()
     encoded = base64.b64encode(content).decode()
 
-    r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
-    sha = r.json()["sha"] if r.status_code == 200 else None
+    # ---- GET existing file metadata (to retrieve SHA) ----
+    r_get = requests.get(url, headers={"Authorization": f"Bearer {token}"})
 
+    if r_get.status_code == 200:
+        try:
+            sha = r_get.json().get("sha")
+        except Exception as e:
+            sha = None
+            st.error(f"ERROR PARSING SHA: {e}")
+    else:
+        sha = None
+        st.error(f"GET FAILED ({r_get.status_code}): {r_get.text}")
+
+    # ---- Prepare upload payload ----
     payload = {
         "message": "Upload annotation results",
         "content": encoded,
@@ -92,8 +107,16 @@ def upload_to_github(local_path, github_path):
     if sha:
         payload["sha"] = sha
 
-    r = requests.put(url, json=payload, headers={"Authorization": f"Bearer {token}"})
-    return r.status_code in (200, 201)
+    # ---- PUT upload ----
+    r_put = requests.put(url, json=payload, headers={"Authorization": f"Bearer {token}"})
+
+    if r_put.status_code not in (200, 201):
+        st.error(f"UPLOAD FAILED ({r_put.status_code}): {r_put.text}")
+        return False
+
+    st.success("Uploaded successfully!")
+    return True
+
 
 def get_example_rows(df, pairs):
     example_rows = []
