@@ -458,10 +458,17 @@ def rows_from_qid_label_list(df, pair_list):
 # ----------------
 if st.session_state.phase == 1:
 
+    # generate one seed per annotator for phase 1
+    if "phase1_seed" not in st.session_state:
+        st.session_state.phase1_seed = random.randint(0, 2**32 - 1)
+
+    seed = st.session_state.phase1_seed
+
+
     fixed_df = rows_from_qid_label_list(df_phase1, FIXED_PHASE1)
     random_df = rows_from_qid_label_list(df_phase1, RANDOM_POOL_PHASE1)
 
-    combined = pd.concat([fixed_df, random_df]).sample(frac=1, random_state=42).reset_index(drop=True)
+    combined = pd.concat([fixed_df, random_df]).sample(frac=1, random_state=seed).reset_index(drop=True)
 
     render_trials(combined, st.session_state.annotator, 1)
 
@@ -469,10 +476,15 @@ if st.session_state.phase == 1:
 # Phase 2
 # ----------------
 elif st.session_state.phase == 2:
+    # generate one seed per annotator for phase 2
+    if "phase2_seed" not in st.session_state:
+        st.session_state.phase2_seed = random.randint(0, 2**32 - 1)
+
+    seed = st.session_state.phase2_seed
 
     fixed_df = rows_from_qid_label_list(df_phase2, FIXED_PHASE2)
     random_df = rows_from_qid_label_list(df_phase2, RANDOM_POOL_PHASE2)
 
-    combined = pd.concat([fixed_df, random_df]).sample(frac=1, random_state=42).reset_index(drop=True)
+    combined = pd.concat([fixed_df, random_df]).sample(frac=1, random_state=seed).reset_index(drop=True)
 
     render_trials(combined, st.session_state.annotator, 2)
