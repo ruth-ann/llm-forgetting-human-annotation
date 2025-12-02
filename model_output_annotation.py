@@ -124,8 +124,8 @@ def get_phase2_examples_and_trials(df, example_pairs, n_random_each=5):
     for label in [0, 1]:
         candidates = df_remaining[df_remaining["label"] == label]
         n = min(n_random_each, len(candidates))
-        sampled_rows.append(candidates.sample(n=n))
-    df_random_trials = pd.concat(sampled_rows).sample(frac=1).reset_index(drop=True)
+        sampled_rows.append(candidates.sample(n=n, random_state=42))
+    df_random_trials = pd.concat(sampled_rows).sample(frac=1, random_state=42).reset_index(drop=True)
     return example_rows.reset_index(drop=True), df_random_trials.reset_index(drop=True)
 
 st.session_state.setdefault("annotator", "")
@@ -461,7 +461,7 @@ if st.session_state.phase == 1:
     fixed_df = rows_from_qid_label_list(df_phase1, FIXED_PHASE1)
     random_df = rows_from_qid_label_list(df_phase1, RANDOM_POOL_PHASE1)
 
-    combined = pd.concat([fixed_df, random_df]).sample(frac=1).reset_index(drop=True)
+    combined = pd.concat([fixed_df, random_df]).sample(frac=1, random_state=42).reset_index(drop=True)
 
     render_trials(combined, st.session_state.annotator, 1)
 
@@ -473,6 +473,6 @@ elif st.session_state.phase == 2:
     fixed_df = rows_from_qid_label_list(df_phase2, FIXED_PHASE2)
     random_df = rows_from_qid_label_list(df_phase2, RANDOM_POOL_PHASE2)
 
-    combined = pd.concat([fixed_df, random_df]).sample(frac=1).reset_index(drop=True)
+    combined = pd.concat([fixed_df, random_df]).sample(frac=1, random_state=42).reset_index(drop=True)
 
     render_trials(combined, st.session_state.annotator, 2)
