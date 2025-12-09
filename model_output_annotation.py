@@ -51,8 +51,6 @@ df_phase1 = load_data("phase1.csv")
 df_phase2 = load_data("phase2dpo_augmented.csv")
 
 example_qid_label_pairs_phase1 = [
-    (120, 0),
-    (120, 1),
     (137, 1),
     (137, 0),
     (232, 0),
@@ -68,8 +66,6 @@ example_qid_label_pairs_phase2 = [
     (1609, 1),
     (2039, 0),
     (2039, 1),
-    (3379, 0),
-    (3379, 1),
 ]
 
 def save_seed_to_file(annotator, phase, seed):
