@@ -55,8 +55,6 @@ example_qid_label_pairs_phase1 = [
     (137, 0),
     (232, 0),
     (232, 1),
-    (2155, 1),
-    (2155, 0),
 ]
 
 example_qid_label_pairs_phase2 = [
@@ -64,8 +62,6 @@ example_qid_label_pairs_phase2 = [
     (1429, 1),
     (1609, 0),
     (1609, 1),
-    (2039, 0),
-    (2039, 1),
 ]
 
 def save_seed_to_file(annotator, phase, seed):
