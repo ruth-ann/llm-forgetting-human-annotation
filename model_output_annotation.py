@@ -64,8 +64,6 @@ example_qid_label_pairs_phase2 = [
     (1429, 1),
     (1609, 0),
     (1609, 1),
-    (2039, 0),
-    (2039, 1),
 ]
 def save_seed_to_file(annotator, phase, seed):
     os.makedirs("results", exist_ok=True)
